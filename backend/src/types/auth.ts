@@ -10,11 +10,14 @@ export interface AuthenticatedUser {
   constituencyId?: string | null;
 }
 
-// Extend Express Request to include the user
+// Fix TS2717: Override Express.User so req.user has the correct type.
+// @types/passport declares req.user as Express.User | undefined,
+// so we redefine Express.User to match AuthenticatedUser.
 declare global {
   namespace Express {
-    interface Request {
-      user?: AuthenticatedUser;
-    }
+    // eslint-disable-next-line @typescript-eslint/no-empty-interface
+    interface User extends AuthenticatedUser {}
   }
 }
+
+

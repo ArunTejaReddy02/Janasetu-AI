@@ -30,6 +30,7 @@ enum SubmissionStatus {
   VERIFIED
   REJECTED
   DUPLICATE
+  MANUAL_REVIEW_NEEDED
 }
 
 enum SubmissionChannel {
@@ -140,6 +141,41 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+// ─── Submitter (PII table) ───────────────────────────────────
+
+model Submitter {
+  id                  String    @id @default(uuid())
+  phoneHash           String?   @unique
+  consentGiven        Boolean   @default(false)
+  consentTimestamp    DateTime?
+  deletionRequested   Boolean   @default(false)
+  deletionRequestedAt DateTime?
+  createdAt           DateTime  @default(now())
+  submissions         Submission[]
+
+  @@map("submitters")
+}
+
+// ─── AdminUnit (geographic hierarchy) ────────────────────────
+
+model AdminUnit {
+  id          String   @id @default(uuid())
+  externalId  String   @unique
+  name        String
+  type        String
+  parentId    String?
+  centroidLat Float?
+  centroidLng Float?
+  geometry    Json?
+  population  Int?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  submissions Submission[]
+  hotspots    Hotspot[]
+
+  @@map("admin_units")
+}
+
 // ─── Submission ───────────────────────────────────────────────
 
 model Submission {
@@ -177,6 +213,13 @@ model Submission {
   duplicateOfId   String?
   clusterId       String?
 
+  // Privacy / Consent (v3)
+  submitterId     String?
+  adminUnitId     String?
+  sttConfidence   Float?
+  consentState    String             @default("not_required")
+  isDeleted       Boolean            @default(false)
+
   // Timestamps
   submittedAt     DateTime           @default(now())
   processedAt     DateTime?
@@ -185,6 +228,8 @@ model Submission {
 
   // Relations
   submittedBy     User?              @relation(fields: [submittedById], references: [id])
+  submitter       Submitter?         @relation(fields: [submitterId], references: [id])
+  adminUnit       AdminUnit?         @relation(fields: [adminUnitId], references: [id])
   hotspot         Hotspot?           @relation(fields: [clusterId], references: [id])
   recommendations Recommendation[]
   notifications   Notification[]
@@ -195,6 +240,8 @@ model Submission {
   @@index([clusterId])
   @@index([submittedById])
   @@index([submittedAt])
+  @@index([submitterId])
+  @@index([adminUnitId])
   @@map("submissions")
 }
 
@@ -205,6 +252,7 @@ model Hotspot {
   category        String
   subCategory     String?
   severity        HotspotSeverity @default(MEDIUM)
+  adminUnitId     String?
   wardId          String?
   constituencyId  String?
   latitude        Float?
@@ -226,8 +274,10 @@ model Hotspot {
   submissions     Submission[]
   projects        Project[]
   recommendations Recommendation[]
+  adminUnit       AdminUnit?      @relation(fields: [adminUnitId], references: [id])
 
   @@index([wardId])
+  @@index([adminUnitId])
   @@index([category])
   @@index([severity])
   @@index([priorityScore])
