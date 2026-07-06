@@ -7,6 +7,10 @@ import { AppService } from './app.service';
 import { envValidationSchema } from './config/env';
 import { PrismaModule } from './database/prisma.module';
 
+import databaseConfig from './config/database';
+import redisConfig from './config/redis';
+import aiConfig from './config/ai';
+
 // Auth & Users
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -14,6 +18,7 @@ import { UsersModule } from './modules/users/users.module';
 // Feature Modules (stubs — filled in subsequent phases)
 import { SubmissionsModule } from './modules/submissions/submissions.module';
 import { AiModule } from './modules/ai/ai.module';
+import { QueueModule } from './queue/queue.module';
 import { HotspotsModule } from './modules/hotspots/hotspots.module';
 import { RecommendationsModule } from './modules/recommendations/recommendations.module';
 import { ProjectsModule } from './modules/projects/projects.module';
@@ -26,6 +31,7 @@ import { SettingsModule } from './modules/settings/settings.module';
     // ─── Config (global) ──────────────────────────────────────
     ConfigModule.forRoot({
       isGlobal: true,
+      load: [databaseConfig, redisConfig, aiConfig],
       envFilePath: ['.env.local', '.env'],
       validationSchema: envValidationSchema,
       validationOptions: { allowUnknown: true, abortEarly: false },
@@ -60,6 +66,7 @@ import { SettingsModule } from './modules/settings/settings.module';
     // ─── Feature Modules (stubs) ──────────────────────────────
     SubmissionsModule,
     AiModule,
+    QueueModule,
     HotspotsModule,
     RecommendationsModule,
     ProjectsModule,
