@@ -29,7 +29,7 @@ export class SubmissionsService {
       audioUrl: dto.audioUrl,
       latitude,
       longitude,
-      adminUnitId,
+      adminUnit: adminUnitId ? { connect: { id: adminUnitId } } : undefined,
       consentState: dto.consent ? 'given' : 'not_given',
     });
 

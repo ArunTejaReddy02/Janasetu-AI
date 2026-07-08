@@ -48,7 +48,7 @@ export const createEntityWorker = (
           });
 
           // Enqueue embedding generation next
-          await job.queue.add(JOB_NAMES.GENERATE_EMBEDDING, {
+          await (job as any).queue.add(JOB_NAMES.GENERATE_EMBEDDING, {
             submissionId,
             text,
           });

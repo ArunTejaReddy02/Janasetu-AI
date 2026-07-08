@@ -7,17 +7,17 @@ import { registerAs } from '@nestjs/config';
  * Primary entity-extraction provider: Google Gemini (@google/generative-ai)
  * Uses native responseSchema / JSON mode for schema-locked output.
  * Model selection:
- *   - gemini-2.0-flash-lite  → high throughput, lower cost  (default)
- *   - gemini-2.5-flash       → higher quality, moderate cost (set GEMINI_MODEL)
+ *   - gemini-2.5-flash       → high throughput, better quality (default)
+ *   - gemini-2.5-pro         → richer model for complex/low-confidence texts
  */
 export default registerAs('ai', () => ({
   // ─── Primary: Google Gemini (entity extraction + fallback generation) ────
   gemini: {
     apiKey: process.env.GEMINI_API_KEY,
-    /** High-throughput default; override with 'gemini-2.5-flash' for better quality */
-    model: process.env.GEMINI_MODEL || 'gemini-2.0-flash-lite',
+    /** High-throughput default; override with 'gemini-2.5-flash' */
+    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
     /** Richer model for complex/low-confidence texts */
-    qualityModel: process.env.GEMINI_QUALITY_MODEL || 'gemini-2.5-flash',
+    qualityModel: process.env.GEMINI_QUALITY_MODEL || 'gemini-2.5-pro',
   },
 
   // ─── Google Cloud Platform (STT, project-scoped services) ────────────────

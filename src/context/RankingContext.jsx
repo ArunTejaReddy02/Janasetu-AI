@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import { DEFAULT_WEIGHTS, applyWeights, normalizeWeights, weightsSum } from '../utils/ranking';
-import { fetchRecommendationsBase } from '../services/api';
+import { fetchRecommendationsBase, fetchRankingWeights, updateRankingWeights } from '../services/api';
 
 const STORAGE_KEY = 'setuai-ranking-weights';
 
@@ -22,6 +22,10 @@ export function RankingProvider({ children }) {
   const [projectStatuses, setProjectStatuses] = useState({});
 
   useEffect(() => {
+    // Load weights from database and recommendations
+    fetchRankingWeights().then((w) => {
+      if (w) setWeightsState(w);
+    });
     fetchRecommendationsBase().then(setBaseRecommendations);
   }, []);
 
@@ -36,12 +40,18 @@ export function RankingProvider({ children }) {
       return { ok: false, error: `Weights must sum to 1.0 (currently ${sum.toFixed(2)}). Use Normalize to fix.` };
     }
     setWeights(draft);
+    updateRankingWeights(draft).catch((err) => {
+      console.error('Failed to sync weights to backend:', err);
+    });
     return { ok: true };
   }, [setWeights]);
 
   const normalizeAndSave = useCallback((draft) => {
     const normalized = normalizeWeights(draft);
     setWeights(normalized);
+    updateRankingWeights(normalized).catch((err) => {
+      console.error('Failed to sync weights to backend:', err);
+    });
     return normalized;
   }, [setWeights]);
 

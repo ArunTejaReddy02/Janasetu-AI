@@ -1,9 +1,7 @@
 import { useEffect, useRef } from 'react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import { getAdminUnitCentroid } from '../services/geocoding';
 
-const DEFAULT_CENTER = [17.705, 83.22];
+const DEFAULT_CENTER = { lat: 17.705, lng: 83.22 };
 const DEFAULT_ZOOM = 12;
 
 function densityColor(density) {
@@ -16,74 +14,102 @@ function densityColor(density) {
 export default function HotspotMap({ features = [], selectedWard = null }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
-  const layerRef = useRef(null);
+  const circlesRef = useRef([]);
+  const infoWindowRef = useRef(null);
 
+  // Initialize Map
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
+    if (!containerRef.current || mapRef.current || !window.google) return;
 
-    const map = L.map(containerRef.current, {
+    const map = new window.google.maps.Map(containerRef.current, {
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
       zoomControl: true,
+      mapTypeControl: false,
+      streetViewControl: false,
+      fullscreenControl: false,
+      styles: [
+        {
+          featureType: 'all',
+          elementType: 'geometry',
+          stylers: [{ color: '#f0edec' }],
+        },
+        {
+          featureType: 'water',
+          elementType: 'geometry',
+          stylers: [{ color: '#cfe3ea' }],
+        },
+      ],
     });
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors',
-      maxZoom: 19,
-    }).addTo(map);
-
     mapRef.current = map;
+    infoWindowRef.current = new window.google.maps.InfoWindow();
 
     return () => {
-      map.remove();
       mapRef.current = null;
     };
   }, []);
 
+  // Update Features (Circles)
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !window.google) return;
 
-    if (layerRef.current) {
-      map.removeLayer(layerRef.current);
-      layerRef.current = null;
-    }
+    // Clear old circles
+    circlesRef.current.forEach((circle) => circle.setMap(null));
+    circlesRef.current = [];
 
-    const group = L.layerGroup();
+    const bounds = new window.google.maps.LatLngBounds();
 
     features.forEach((f) => {
       const [lng, lat] = f.geometry.coordinates;
       const { density, submission_count, label } = f.properties;
-      const radius = 8 + density * 24;
+      const center = { lat, lng };
 
-      L.circleMarker([lat, lng], {
-        radius,
+      bounds.extend(center);
+
+      // Create google circle marker
+      const circle = new window.google.maps.Circle({
+        strokeColor: '#FFFFFF',
+        strokeOpacity: 0.9,
+        strokeWeight: 1.5,
         fillColor: densityColor(density),
-        color: '#fff',
-        weight: 2,
-        opacity: 0.9,
         fillOpacity: 0.35 + density * 0.45,
-      })
-        .bindPopup(
-          `<strong>${label || 'Hotspot'}</strong><br/>Density: ${density.toFixed(2)}<br/>Submissions: ${submission_count}`
-        )
-        .addTo(group);
+        map: map,
+        center: center,
+        radius: 150 + density * 300, // radius in meters
+      });
+
+      // Bind click listener for popups
+      circle.addListener('click', () => {
+        if (infoWindowRef.current) {
+          infoWindowRef.current.setContent(
+            `<div style="color: #1c1b1b; padding: 4px; font-family: sans-serif;">
+              <strong style="font-size: 13px;">${label || 'Hotspot'}</strong><br/>
+              <span style="font-size: 11px; color: #41484a;">Density: ${density.toFixed(2)}</span><br/>
+              <span style="font-size: 11px; color: #41484a;">Submissions: ${submission_count}</span>
+            </div>`
+          );
+          infoWindowRef.current.setPosition(center);
+          infoWindowRef.current.open(map);
+        }
+      });
+
+      circlesRef.current.push(circle);
     });
 
-    group.addTo(map);
-    layerRef.current = group;
-
     if (features.length > 0) {
-      const bounds = L.latLngBounds(features.map((f) => [f.geometry.coordinates[1], f.geometry.coordinates[0]]));
-      map.fitBounds(bounds.pad(0.15));
+      map.fitBounds(bounds);
     }
   }, [features]);
 
+  // Handle Ward centroid changes
   useEffect(() => {
-    if (!selectedWard || !mapRef.current) return;
+    if (!selectedWard || !mapRef.current || !window.google) return;
     const centroid = getAdminUnitCentroid(selectedWard);
     if (centroid) {
-      mapRef.current.setView([centroid.lat, centroid.lng], 14);
+      mapRef.current.setCenter({ lat: centroid.lat, lng: centroid.lng });
+      mapRef.current.setZoom(14);
     }
   }, [selectedWard]);
 

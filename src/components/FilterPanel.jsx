@@ -1,5 +1,6 @@
 const languageOptions = [
   { value: 'all', label: 'All' },
+  { value: 'te', label: 'Telugu' },
   { value: 'hi', label: 'Hindi' },
   { value: 'mr', label: 'Marathi' },
   { value: 'kn', label: 'Kannada' },
@@ -91,7 +92,7 @@ export default function FilterPanel({ filters, setFilter, toggleChannel, clearFi
           <div className="grid grid-cols-2 gap-2 mt-4">
             {stats?.languages &&
               Object.entries(stats.languages).map(([lang, pct]) => {
-                const colorMap = { Hindi: 'bg-primary', Marathi: 'bg-secondary', English: 'bg-tertiary' };
+                const colorMap = { Hindi: 'bg-primary', Marathi: 'bg-secondary', Telugu: 'bg-primary-container', English: 'bg-tertiary' };
                 return (
                   <div key={lang} className="flex items-center gap-2 text-[10px] text-on-surface">
                     <span className={`w-2 h-2 rounded-full ${colorMap[lang] || 'bg-outline'}`} />

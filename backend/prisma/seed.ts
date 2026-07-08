@@ -1,5 +1,5 @@
 import { PrismaClient, Role } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -156,11 +156,29 @@ async function main() {
   });
   console.log(`✅ Sample hotspot created: ${hotspot.title}`);
 
+  // ─── Demo Resident ─────────────────────────────────────────
+  const residentPasswordHash = await bcrypt.hash('Resident@123!', 12);
+  const resident = await prisma.user.upsert({
+    where: { email: 'resident@janasetu.ai' },
+    update: {},
+    create: {
+      email: 'resident@janasetu.ai',
+      name: 'Demo Resident',
+      passwordHash: residentPasswordHash,
+      role: Role.CITIZEN,
+      wardId: 'ward-001',
+      isActive: true,
+      isEmailVerified: true,
+    },
+  });
+  console.log(`✅ Resident created: ${resident.email}`);
+
   console.log('\n🎉 Seed completed successfully!');
   console.log('\n📋 Demo Credentials:');
   console.log('   Super Admin: admin@janasetu.ai / Admin@123!');
   console.log('   Analyst:     analyst@janasetu.ai / Analyst@123!');
   console.log('   Ward Officer: officer@janasetu.ai / Officer@123!');
+  console.log('   Resident:    resident@janasetu.ai / Resident@123!');
 }
 
 main()

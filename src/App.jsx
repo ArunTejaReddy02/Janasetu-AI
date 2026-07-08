@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
 import { RankingProvider } from './context/RankingContext';
+import ProtectedRoute from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import SubmissionsPage from './pages/SubmissionsPage';
@@ -8,7 +10,8 @@ import DashboardPage from './pages/DashboardPage';
 import MapPage from './pages/MapPage';
 import ProjectsPage from './pages/ProjectsPage';
 import SettingsPage from './pages/SettingsPage';
-import SubmitPage from './pages/SubmitPage';
+import ResidentPortal from './pages/ResidentPortal';
+import LoginPage from './pages/LoginPage';
 
 function DashboardLayout({ searchQuery, onSearch }) {
   return (
@@ -33,11 +36,32 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
 
   return (
-    <RankingProvider>
-      <Routes>
-        <Route path="/submit" element={<SubmitPage />} />
-        <Route path="/*" element={<DashboardLayout searchQuery={searchQuery} onSearch={setSearchQuery} />} />
-      </Routes>
-    </RankingProvider>
+    <AuthProvider>
+      <RankingProvider>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          
+          {/* Resident Portal for Citizens only */}
+          <Route
+            path="/resident"
+            element={
+              <ProtectedRoute allowedRoles={['CITIZEN']}>
+                <ResidentPortal />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Admin Dashboard for Officers/Admins only */}
+          <Route
+            path="/*"
+            element={
+              <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'ADMIN', 'ANALYST', 'WARD_OFFICER']}>
+                <DashboardLayout searchQuery={searchQuery} onSearch={setSearchQuery} />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </RankingProvider>
+    </AuthProvider>
   );
 }

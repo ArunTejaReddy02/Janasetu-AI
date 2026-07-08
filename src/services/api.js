@@ -4,7 +4,7 @@
  * Swap BASE_URL and remove mocks to connect to FastAPI backend.
  */
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
 
 // ─── Mock Data ───
 
@@ -452,31 +452,151 @@ const mockStats = {
   total_today: 1482,
   total_trend: '+12%',
   unprocessed: 42,
-  languages: { Hindi: 68, Marathi: 21, English: 11 },
+  languages: { Hindi: 45, Telugu: 23, Marathi: 21, English: 11 },
   channels_active: 12,
 };
 
 // ─── API Functions ───
 
+// ─── Cache and Helpers ───
+let cachedSubmissions = [];
+let cachedRecommendations = [];
+
+function formatTimeAgo(dateString) {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const now = new Date();
+  const seconds = Math.floor((now - date) / 1000);
+  if (seconds < 60) return 'Just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function mapSubmission(s) {
+  return {
+    submission_id: s.id,
+    channel: (s.channel ?? 'web').toLowerCase(),
+    status: (s.status ?? 'pending').toLowerCase(),
+    created_at: s.submittedAt ?? s.createdAt,
+    time_ago: formatTimeAgo(s.submittedAt ?? s.createdAt),
+    raw_content: {
+      type: s.audioUrl ? 'audio' : 'text',
+      transcript: s.translatedText || s.rawText || '',
+      detected_language: (s.language ?? 'en').toLowerCase(),
+    },
+    extracted: {
+      facility_type: (s.category ?? 'other').toLowerCase(),
+      urgency: s.entities?.urgency || (s.urgencyScore > 0.7 ? 'high' : 'normal'),
+      summary: s.entities?.summary || s.rawText || '',
+      location_text: s.locationName || s.entities?.location_text || '',
+      cluster_id: s.clusterId || null,
+    },
+    location: {
+      lat: s.latitude,
+      lng: s.longitude,
+      admin_unit_id: s.adminUnitId,
+    },
+  };
+}
+
+function mapRecommendation(r) {
+  const metadata = r.metadata || {};
+  const rawScores = metadata.rawScores || {
+    citizen_demand: Math.round((r.urgencyScore ?? 0.7) * 100),
+    demographic_need: Math.round((r.impactScore ?? 0.6) * 100),
+    infrastructure_gap: Math.round((r.costBenefitScore ?? 0.8) * 100),
+    feasibility: Math.round((r.feasibilityScore ?? 0.7) * 100),
+    plan_alignment: metadata.plan_alignment ?? 75,
+  };
+
+  const score_breakdown = {};
+  const DEFAULT_WEIGHTS = {
+    citizen_demand: 0.30,
+    demographic_need: 0.20,
+    infrastructure_gap: 0.25,
+    feasibility: 0.15,
+    plan_alignment: 0.10,
+  };
+
+  for (const [key, raw] of Object.entries(rawScores)) {
+    const weight = DEFAULT_WEIGHTS[key] ?? 0.2;
+    score_breakdown[key] = {
+      raw,
+      weight,
+      weighted: Number((raw * weight).toFixed(2)),
+    };
+  }
+
+  const final_score = Object.values(score_breakdown).reduce((sum, item) => sum + item.weighted, 0);
+
+  return {
+    project_id: r.id,
+    title: r.title,
+    admin_unit_id: r.hotspot?.adminUnitId ?? 'AU-VZG-WARD-07',
+    status: r.project?.status?.toLowerCase() || 'new',
+    evidence: {
+      submission_count: r.hotspot?.submissionCount ?? 1,
+      sample_submission_ids: r.hotspot?.submissions?.map((s) => s.id) ?? [],
+    },
+    score_breakdown,
+    final_score: Math.round(final_score * 100) / 100,
+  };
+}
+
+// ─── API Functions ───
+
+async function fetchWithAuth(url, options = {}) {
+  const token = localStorage.getItem('accessToken');
+  const headers = {
+    ...options.headers,
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+  };
+  const res = await fetch(url, { ...options, headers });
+  if (res.status === 401) {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+    window.location.href = '/login';
+    throw new Error('Session expired. Please log in again.');
+  }
+  return res;
+}
+
 export async function fetchSubmissions() {
-  // TODO: Replace with real API call
-  // const res = await fetch(`${BASE_URL}/submissions`);
-  // return res.json();
-  return new Promise((resolve) => setTimeout(() => resolve(mockSubmissions), 300));
+  const res = await fetchWithAuth(`${BASE_URL}/submissions`);
+  if (!res.ok) throw new Error('Failed to fetch submissions');
+  const json = await res.json();
+  const rawData = Array.isArray(json) ? json : (json.data || []);
+  cachedSubmissions = rawData.map(mapSubmission);
+  return cachedSubmissions;
 }
 
 export async function submitReport(data) {
-  // TODO: Replace with real API call
-  // const res = await fetch(`${BASE_URL}/submit`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-  // return res.json();
-  return new Promise((resolve) =>
-    setTimeout(() => resolve({ submission_id: `SC-${Date.now()}`, status: 'received', reference_message: 'Thank you, your report has been recorded.' }), 200)
-  );
+  const res = await fetchWithAuth(`${BASE_URL}/submissions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Submission failed');
+  const json = await res.json();
+  return {
+    submission_id: json.id || json.submission_id,
+    status: json.status,
+    reference_message: 'Thank you, your report has been recorded.',
+  };
 }
 
 export async function fetchRecommendationsBase(constituencyId = 'CST-VZG-01') {
-  // TODO: Replace with real API call
-  return new Promise((resolve) => setTimeout(() => resolve([...mockRecommendations]), 300));
+  const res = await fetchWithAuth(`${BASE_URL}/recommendations`);
+  if (!res.ok) throw new Error('Failed to fetch recommendations');
+  const json = await res.json();
+  const rawData = Array.isArray(json) ? json : (json.data || []);
+  cachedRecommendations = rawData.map(mapRecommendation);
+  return cachedRecommendations;
 }
 
 export async function fetchRecommendations(constituencyId = 'CST-VZG-01') {
@@ -484,7 +604,7 @@ export async function fetchRecommendations(constituencyId = 'CST-VZG-01') {
 }
 
 export function getProjectById(projectId) {
-  return mockRecommendations.find((p) => p.project_id === projectId) ?? null;
+  return cachedRecommendations.find((p) => p.project_id === projectId) ?? null;
 }
 
 export function getSubmissionsForProject(projectId) {
@@ -492,27 +612,43 @@ export function getSubmissionsForProject(projectId) {
   if (!project) return [];
   const ids = new Set(project.evidence.sample_submission_ids);
   const clusterIds = new Set(project.cluster_ids);
-  return mockSubmissions.filter(
-    (s) => ids.has(s.submission_id) || clusterIds.has(s.extracted.cluster_id)
+  return cachedSubmissions.filter(
+    (s) => ids.has(s.submission_id) || (s.extracted.cluster_id && clusterIds.has(s.extracted.cluster_id))
   );
 }
 
 export async function fetchHotspots(constituencyId = 'CST-VZG-01', facilityType = 'all', dateRange = 'all') {
-  // TODO: Replace with real API call
-  let features = mockHotspots.features;
+  const res = await fetchWithAuth(`${BASE_URL}/hotspots`);
+  if (!res.ok) throw new Error('Failed to fetch hotspots');
+  const hotspots = await res.json();
+  const rawData = Array.isArray(hotspots) ? hotspots : (hotspots.data || []);
+
+  const features = rawData.map((h) => ({
+    type: 'Feature',
+    geometry: {
+      type: 'Point',
+      coordinates: [h.longitude ?? 83.22, h.latitude ?? 17.705],
+    },
+    properties: {
+      density: (h.priorityScore ?? 0) / 100,
+      submission_count: h.submissionCount ?? 0,
+      label: `${h.title} — ${h.category}`,
+    },
+  }));
+
+  let filteredFeatures = features;
   if (facilityType !== 'all') {
-    features = features.filter((f) =>
-      f.properties.label?.toLowerCase().includes(facilityType.replace('_', ' ').split('_')[0])
+    filteredFeatures = features.filter((f) =>
+      f.properties.label?.toLowerCase().includes(facilityType.replace('_', ' ').split(' ')[0])
     );
   }
-  if (dateRange === '7d') {
-    features = features.filter((f) => f.properties.density >= 0.4);
-  } else if (dateRange === '30d') {
-    features = features.filter((f) => f.properties.density >= 0.25);
-  }
-  return new Promise((resolve) =>
-    setTimeout(() => resolve({ ...mockHotspots, features, facility_type: facilityType }), 200)
-  );
+
+  return {
+    layer_type: 'hotspot_kde',
+    facility_type: facilityType,
+    generated_at: new Date().toISOString(),
+    features: filteredFeatures,
+  };
 }
 
 export async function fetchGapScores() {
@@ -520,7 +656,37 @@ export async function fetchGapScores() {
 }
 
 export async function fetchStats() {
+  try {
+    const res = await fetchWithAuth(`${BASE_URL}/analytics/dashboard`);
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.warn('Dashboard stats fetch failed, falling back to mock:', err);
+  }
   return new Promise((resolve) => setTimeout(() => resolve(mockStats), 150));
+}
+
+export async function fetchRankingWeights() {
+  try {
+    const res = await fetchWithAuth(`${BASE_URL}/settings/ranking-weights`);
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.warn('Failed to fetch ranking weights, using local fallback:', err);
+  }
+  return null;
+}
+
+export async function updateRankingWeights(weights) {
+  const res = await fetchWithAuth(`${BASE_URL}/settings/ranking-weights`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(weights),
+  });
+  if (!res.ok) throw new Error('Failed to update weights on backend');
+  return await res.json();
 }
 
 export default {
@@ -529,4 +695,6 @@ export default {
   fetchRecommendations,
   fetchHotspots,
   fetchStats,
+  fetchRankingWeights,
+  updateRankingWeights,
 };

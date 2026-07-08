@@ -5,6 +5,7 @@ import { createBullMQQueue } from './bullmq';
 import { QUEUE_NAMES } from './queues';
 import { SubmissionsModule } from '../modules/submissions/submissions.module';
 import { AiModule } from '../modules/ai/ai.module';
+import { PrismaService } from '../database/prisma.service';
 
 // Services
 import { SttService } from '../modules/ai/stt.service';
@@ -17,6 +18,9 @@ import { SubmissionsRepository } from '../modules/submissions/submissions.reposi
 import { createSttWorker } from '../workers/stt.worker';
 import { createTranslationWorker } from '../workers/translation.worker';
 import { createEntityWorker } from '../workers/entity.worker';
+import { createClusteringWorker } from '../workers/clustering.worker';
+import { createHotspotWorker } from '../workers/hotspot.worker';
+import { createRankingWorker } from '../workers/ranking.worker';
 
 @Module({
   imports: [
@@ -44,12 +48,24 @@ import { createEntityWorker } from '../workers/entity.worker';
       useFactory: (config: ConfigService) => createBullMQQueue(QUEUE_NAMES.CLUSTERING, config),
       inject: [ConfigService],
     },
+    {
+      provide: 'RANKING_QUEUE',
+      useFactory: (config: ConfigService) => createBullMQQueue(QUEUE_NAMES.RANKING, config),
+      inject: [ConfigService],
+    },
+    {
+      provide: 'HOTSPOT_QUEUE',
+      useFactory: (config: ConfigService) => createBullMQQueue(QUEUE_NAMES.HOTSPOT, config),
+      inject: [ConfigService],
+    },
   ],
   exports: [
     'STT_QUEUE',
     'TRANSLATION_QUEUE',
     'ENTITY_EXTRACTION_QUEUE',
     'CLUSTERING_QUEUE',
+    'RANKING_QUEUE',
+    'HOTSPOT_QUEUE',
   ],
 })
 export class QueueModule implements OnModuleInit, OnApplicationShutdown {
@@ -61,11 +77,13 @@ export class QueueModule implements OnModuleInit, OnApplicationShutdown {
     private readonly translationService: TranslationService,
     private readonly entityExtractionService: EntityExtractionService,
     private readonly embeddingService: EmbeddingService,
+    private readonly prisma: PrismaService,
     @Inject(forwardRef(() => SubmissionsRepository))
     private readonly submissionsRepository: SubmissionsRepository,
     @Inject('TRANSLATION_QUEUE') private readonly translationQueue: Queue,
     @Inject('ENTITY_EXTRACTION_QUEUE') private readonly entityExtractionQueue: Queue,
     @Inject('CLUSTERING_QUEUE') private readonly clusteringQueue: Queue,
+    @Inject('RANKING_QUEUE') private readonly rankingQueue: Queue,
   ) {}
 
   onModuleInit() {
@@ -101,7 +119,31 @@ export class QueueModule implements OnModuleInit, OnApplicationShutdown {
       this.clusteringQueue,
     );
 
-    this.workers.push(sttWorker, translationWorker, entityWorker);
+    const clusteringWorker = createClusteringWorker(
+      redisConnection,
+      this.prisma,
+      this.configService,
+      this.rankingQueue,
+    );
+
+    const hotspotWorker = createHotspotWorker(
+      redisConnection,
+      this.prisma,
+    );
+
+    const rankingWorker = createRankingWorker(
+      redisConnection,
+      this.prisma,
+    );
+
+    this.workers.push(
+      sttWorker,
+      translationWorker,
+      entityWorker,
+      clusteringWorker,
+      hotspotWorker,
+      rankingWorker,
+    );
   }
 
   async onApplicationShutdown() {

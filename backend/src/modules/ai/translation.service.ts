@@ -29,7 +29,7 @@ export class TranslationService {
     const projectId = this.config.get<string>('ai.google.projectId');
     const keyFilename = this.config.get<string>('ai.google.credentialsPath');
     const geminiApiKey = this.config.get<string>('ai.gemini.apiKey');
-    this.modelName = this.config.get<string>('ai.gemini.model') ?? 'gemini-2.0-flash-lite';
+    this.modelName = this.config.get<string>('ai.gemini.model') ?? 'gemini-2.5-flash';
 
     // 1. Initialize Google Cloud Translate if configured
     if (projectId || keyFilename || process.env.GOOGLE_APPLICATION_CREDENTIALS) {

@@ -179,16 +179,16 @@ export class EntityExtractionService {
     }
     this.genAI = new GoogleGenerativeAI(apiKey ?? '');
     this.defaultModel =
-      this.config.get<string>('ai.gemini.model') ?? 'gemini-2.0-flash-lite';
+      this.config.get<string>('ai.gemini.model') ?? 'gemini-2.5-flash';
     this.qualityModel =
-      this.config.get<string>('ai.gemini.qualityModel') ?? 'gemini-2.5-flash';
+      this.config.get<string>('ai.gemini.qualityModel') ?? 'gemini-2.5-pro';
   }
 
   /**
    * Extract structured civic entities from English text.
    *
    * @param englishText  Text already translated to English (translation-first pipeline).
-   * @param useQualityModel  Set true to use gemini-2.5-flash (auto-triggered on low confidence).
+   * @param useQualityModel  Set true to use gemini-2.5-pro (auto-triggered on low confidence).
    * @returns ExtractedEntities — identical shape regardless of which path fills it.
    *          The NLP worker does not need to branch on extraction path.
    */

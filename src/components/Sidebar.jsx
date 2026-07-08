@@ -7,7 +7,6 @@ const navItems = [
   { to: '/projects', icon: 'assignment', label: 'Projects' },
   { to: '/submissions', icon: 'fact_check', label: 'Submissions' },
   { to: '/settings', icon: 'settings', label: 'Settings' },
-  { to: '/submit', icon: 'campaign', label: 'Citizen Form' },
 ];
 
 export default function Sidebar() {

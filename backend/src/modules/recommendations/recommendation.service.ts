@@ -1,9 +1,12 @@
 import { Injectable } from '@nestjs/common';
 
-/** @todo Implement ranking engine in Module 5 — Recommendations */
+import { RecommendationRepository } from './recommendation.repository';
+
 @Injectable()
 export class RecommendationService {
-  findAll() {
-    return { message: 'Recommendations module — coming in Module 5', data: [] };
+  constructor(private readonly recommendationRepository: RecommendationRepository) {}
+
+  async findAll() {
+    return this.recommendationRepository.findAll();
   }
 }

@@ -35,7 +35,7 @@ export default function EvidenceGrid({ submissionIds }) {
     : mockEvidence;
 
   return (
-    <div className="glass-panel rounded-2xl p-[16px] inner-glow-top flex-1 flex flex-col overflow-hidden">
+    <div className="glass-panel rounded-2xl p-[16px] inner-glow-top flex flex-col shrink-0">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-[Geist] text-sm font-bold flex items-center gap-2 text-on-surface">
           Visual Evidence
@@ -45,7 +45,7 @@ export default function EvidenceGrid({ submissionIds }) {
         </h3>
       </div>
 
-      <div className="flex-1 overflow-y-auto pr-1">
+      <div className="pr-1">
         {items.length === 0 ? (
           <p className="text-xs text-on-surface-variant text-center py-4">No photo evidence for this project.</p>
         ) : (
